@@ -2,32 +2,35 @@ const initServer = require('./src/initServer.js')
 
 const conn = initServer()
 
-let users = {}
+let users = new Map()
 
 conn.use(function (socket, next) {
   var handshakeData = socket.request
   const username = handshakeData._query.username
   if (Object.values(users).includes(username)) {
     socket.disconnect(true)
-    next(new Error('taken'))
+    next(new Error('Username taken.'))
   } else {
-    users[socket.id] = username
+    users.set(socket.id, username)
     next()
   }
 })
 
 conn.on('connection', (socket) => {
-  console.log(users[socket.id] + ' has connected')
-  socket.broadcast.emit('other_message', { message: users[socket.id] + ' has connected' })
+  const senderInitial = users.get(socket.id)
+  console.log(senderInitial + ' has connected')
+  socket.broadcast.emit('other_message', { message: senderInitial + ' has connected' })
 
   socket.on('message', (data) => {
-    console.log(users[socket.id] + ': ' + data.message)
-    socket.broadcast.emit('chat_message', { username: users[socket.id], message: data.message })
+    const sender = users.get(socket.id)
+    console.log(sender + ': ' + data.message)
+    socket.broadcast.emit('chat_message', { username: sender, message: data.message })
   })
 
   socket.on('disconnect', () => {
-    console.log(users[socket.id] + ' has disconnected')
-    conn.emit('other_message', { message: users[socket.id] + ' has disconnected' }, 'everyone')
-    delete users[socket.id]
+    const sender = users.get(socket.id)
+    console.log(sender + ' has disconnected')
+    conn.emit('other_message', { message: sender + ' has disconnected' }, 'everyone')
+    users.delete(socket.id)
   })
 })
